@@ -150,7 +150,6 @@ def calculate_priority_score(task, all_tasks):
         strategic = 50
     
     # 3. DEPENDENCY IMPACT (0-100)
-    # Count how many other tasks might depend on this one
     description = task.get('description', '').lower()
     if 'blocker' in description or 'blocks' in description:
         dependency_impact = 85
@@ -162,7 +161,7 @@ def calculate_priority_score(task, all_tasks):
     # 4. TEAM CAPACITY (0-100)
     assignees = len(task.get('assignee', []))
     if assignees == 0:
-        team_capacity = 60  # Not assigned yet = medium priority
+        team_capacity = 60
     elif assignees == 1:
         team_capacity = 70
     elif assignees == 2:
@@ -257,6 +256,24 @@ Be direct and concise.
 # API ENDPOINTS
 # ============================================
 
+@app.route('/', methods=['GET'])
+def home():
+    """Root endpoint - Render health check"""
+    return jsonify({
+        'status': 'OK',
+        'service': 'ProActive Intelligence Hub',
+        'message': 'API is running',
+        'endpoints': {
+            'health': '/api/health',
+            'tasks': '/api/tasks',
+            'next_task': '/api/next-task',
+            'summary': '/api/summary',
+            'analyze': '/api/analyze (POST)',
+            'risk': '/api/risk',
+            'blockers': '/api/blockers'
+        }
+    }), 200
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint"""
@@ -282,11 +299,9 @@ def get_all_tasks():
         
         tasks = normalize_tasks(cards, lists)
         
-        # Calculate priority
         for task in tasks:
             task['priority_score'] = calculate_priority_score(task, tasks)
         
-        # Sort by priority (highest first)
         tasks.sort(key=lambda x: x['priority_score'], reverse=True)
         
         return jsonify({
@@ -342,7 +357,6 @@ def get_summary():
         
         tasks = normalize_tasks(cards, lists)
         
-        # Count by status
         status_counts = {}
         for task in tasks:
             status = task['status']
@@ -467,7 +481,16 @@ def server_error(error):
 # ============================================
 
 if __name__ == '__main__':
+    # Get port from environment variable (required for Render)
+    port = int(os.getenv('PORT', 10000))
+    
     print("🚀 Starting ProActive Intelligence Hub...")
-    print(f"📍 Running on http://localhost:5000")
-    print(f"🧪 Test endpoint: http://localhost:5000/api/health")
-    app.run(debug=True, port=5000, host='localhost')
+    print(f"📍 Running on port {port}")
+    print(f"🧪 Health check: http://0.0.0.0:{port}/api/health")
+    
+    # CRITICAL: Must bind to 0.0.0.0 for Render
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=False  # Disable debug in production
+    )
